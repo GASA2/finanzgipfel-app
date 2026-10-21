@@ -711,7 +711,7 @@ function aboList(){const now=nowYM(),t0=new Date(today().getFullYear(),today().g
     const change=pays.length>1&&Math.abs(pays[0].a-pays[1].a)>.009?r2(pays[0].a-pays[1].a):0;
     out.push({f,l,yearly,cur,perMonth,perYear,pays,last,next,days:next?Math.round((next-t0)/864e5):null,change,ended,paidAfterEnd,endsAt,mark:aboCfg(f).mark||"keep"})}));
   return out.sort((a,b)=>b.perYear-a.perYear)}
-const APP_VERSION="1.0";
+const APP_VERSION="1.1";
 const ymLabel=(t,short)=>(short?MSHORT:MONTHS)[t%100-1]+" "+Math.floor(t/100);
 const ymAdd=(t,k)=>{let y=Math.floor(t/100),m=t%100+k;while(m>12){m-=12;y++}while(m<1){m+=12;y--}return y*100+m};
 function monthChoices(){const y=todayYear(),o=[];for(let m=1;m<=12;m++)o.push([ym(m,y),ymLabel(ym(m,y))]);return o}
