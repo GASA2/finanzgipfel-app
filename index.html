@@ -70,7 +70,7 @@ header.top h1{font-family:var(--display);font-weight:700;font-size:26px;letter-s
 .tile{background:var(--surface);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:4px;min-width:0;text-align:left}
 .tile .mid{font-size:20px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.statrow .mid{font-size:19px}.statrow .label{text-transform:none;letter-spacing:0;font-size:12.5px}
-.stattabs{display:flex;width:100%}.stattabs button{flex:1;padding:9px 6px;font-size:14px}
+.stattabs{display:flex;width:100%}.stattabs button{flex:1;padding:9px 4px;font-size:14px;white-space:nowrap}
 .mcals{display:grid;grid-template-columns:repeat(3,1fr);gap:12px 10px;margin-top:14px}
 .mcal{display:flex;flex-direction:column;gap:4px;text-align:left;min-width:0}
 .mcal-h{font-size:12px;font-weight:600;color:var(--muted)}
@@ -711,7 +711,7 @@ function aboList(){const now=nowYM(),t0=new Date(today().getFullYear(),today().g
     const change=pays.length>1&&Math.abs(pays[0].a-pays[1].a)>.009?r2(pays[0].a-pays[1].a):0;
     out.push({f,l,yearly,cur,perMonth,perYear,pays,last,next,days:next?Math.round((next-t0)/864e5):null,change,ended,paidAfterEnd,endsAt,mark:aboCfg(f).mark||"keep"})}));
   return out.sort((a,b)=>b.perYear-a.perYear)}
-const APP_VERSION="1.1";
+const APP_VERSION="1.2";
 const ymLabel=(t,short)=>(short?MSHORT:MONTHS)[t%100-1]+" "+Math.floor(t/100);
 const ymAdd=(t,k)=>{let y=Math.floor(t/100),m=t%100+k;while(m>12){m-=12;y++}while(m<1){m+=12;y--}return y*100+m};
 function monthChoices(){const y=todayYear(),o=[];for(let m=1;m<=12;m++)o.push([ym(m,y),ymLabel(ym(m,y))]);return o}
@@ -854,8 +854,8 @@ function vStats(){
   const cs={};for(let m=1;m<=12;m++)entries(m,y).forEach(e=>{const date=new Date(y,m-1,e.d);if(!past(date))return;cs[e.c]=cs[e.c]||{n:0,a:0};cs[e.c].n++;cs[e.c].a+=+e.a||0});
   const fav=Object.entries(cs).sort((a,b)=>b[1].n-a[1].n).slice(0,6);
   return`
-  <div class="seg stattabs" role="group" aria-label="Bereich"><button data-st="money" aria-pressed="${S.statTab!=="habits"}">Geld &amp; Kosten</button><button data-st="habits" aria-pressed="${S.statTab==="habits"}">Ausgabeverhalten</button></div>
-  ${S.statTab==="habits"?`
+  <div class="seg stattabs" role="group" aria-label="Bereich"><button data-st="money" aria-pressed="${S.statTab!=="habits"&&S.statTab!=="fix"}">Geld &amp; Kosten</button><button data-st="habits" aria-pressed="${S.statTab==="habits"}">Verhalten</button><button data-st="fix" aria-pressed="${S.statTab==="fix"}">Budget‑Check</button></div>
+  ${S.statTab==="fix"?yearFixCheck(y):S.statTab==="habits"?`
   <section class="card"><div class="sec-h"><h2>Ausgaben-Kalender ${y}</h2><span class="small muted">bis ${isCur?"heute":"Dezember"}</span></div>
     <div class="grid3 statrow"><div><div class="label">Ausgabenfrei</div><div class="mid">${none} <span class="small muted" style="font-weight:500">Tage</span></div></div>
       <div><div class="label">Ø pro Tag</div><div class="mid">${chf(elapsed?sum/elapsed:0,0)}</div></div>
@@ -882,6 +882,29 @@ function vStats(){
   </div></section>
 `})()}
 `}`}
+
+/* ---------- Budget-Check yearly fixed costs (like the Excel) ----------
+   Budget = yearly amount of each yearly fixed cost (taxes: the tax amount from the tax check).
+   Paid = bills in "Fixkosten & Rechnungen" of that year whose position matches the name. */
+function yearFixRows(y){const s=S.settings,paidFor=names=>{const ns=names.map(n=>String(n).toLowerCase());let t=0;
+    for(let m=1;m<=12;m++)(S.months[key(m,y)]?.info||[]).forEach(b=>{if(ns.includes(String(b.p||"").toLowerCase()))t+=+b.a||0});return r2(t)};
+  const rows=[];const tax=(s.fix||[]).filter(f=>f.t==="Steuern"),stJ=+(s.steuerJahr?.[y])||0;
+  if(tax.length&&stJ)rows.push({n:"Steuern",budget:stJ,paid:paidFor(tax.map(f=>f.n)),tax:true});
+  (s.fixYear||[]).forEach(f=>{let amt=0;for(let m=1;m<=12;m++){const v=valAt(f.h,ym(m,y));if(v>0)amt=v}if(!amt)return;rows.push({n:f.n,budget:amt,paid:paidFor([f.n])})});
+  return rows.map(r=>({...r,diff:r2(r.budget-r.paid),st:r.paid===0?"open":r.budget-r.paid<-.004?"over":"ok"}))}
+function yearFixCheck(y){const rows=yearFixRows(y);if(!rows.length)return"";
+  const B=rows.reduce((a,r)=>a+r.budget,0),P=rows.reduce((a,r)=>a+r.paid,0),D=B-P,over=rows.filter(r=>r.st==="over"),open=rows.filter(r=>r.st==="open");
+  const pill=r=>r.st==="open"?'<span class="pill warn">offen</span>':r.st==="over"?'<span class="pill bad">über Budget</span>':'<span class="pill good">im Budget</span>';
+  return`<section class="card"><div class="sec-h"><h2>Jährliche Fixkosten ${y}</h2><span class="small muted">Budget vs. bezahlt</span></div>
+    <div class="grid3 statrow"><div><div class="label">Budget</div><div class="mid">${chf(B,0)}</div></div><div><div class="label">Bezahlt</div><div class="mid">${chf(P,0)}</div></div>
+      <div><div class="label">Noch offen</div><div class="mid" style="color:${D<0?"var(--bad)":"var(--fg)"}">${chf(D,0)}</div></div></div>
+    <div class="small" style="margin-top:8px">${over.length?`<span style="color:var(--bad);font-weight:600">${over.length} über Budget</span>`:`<span style="color:var(--good);font-weight:600">Alles im Budget</span>`}${open.length?` · <span class="muted">${open.length} noch nicht bezahlt</span>`:""}</div>
+    <div class="list" style="margin-top:6px">${rows.map(r=>{const f=r.budget?Math.min(1,r.paid/r.budget):0;return`<div class="li"><div class="grow">
+        <div class="row" style="gap:8px"><span class="t">${esc(r.n)}</span>${pill(r)}</div>
+        <div class="small muted">${r.st==="open"?`Budget ${chf(r.budget)}, noch nichts bezahlt`:`${chf(r.paid)} von ${chf(r.budget)} bezahlt`}</div>
+        <div class="bar" style="margin-top:6px"><i style="width:${f*100}%;background:${r.st==="over"?"var(--bad)":r.st==="open"?"var(--warn)":"var(--good)"}"></i></div></div>
+        <div style="text-align:right"><div class="amt" style="color:${r.diff<-.004?"var(--bad)":"var(--fg)"}">${r.diff>0.004?"+":""}${chf(r.diff)}</div><div class="small muted">${r.diff<-.004?"zu viel":r.st==="open"?"offen":"übrig"}</div></div></div>`}).join("")}</div>
+    <div class="small muted" style="margin-top:8px">Bezahlt = Rechnungen unter „Fixkosten &amp; Rechnungen“ mit passender Fixkosten-Position. Steuern: Betrag aus dem Steuern-Check.</div></section>`}
 
 /* ---------- Kauf-Check: what a purchase costs in working time, and a wish list with 30 days to think ---------- */
 const WISH_DAYS=30;
