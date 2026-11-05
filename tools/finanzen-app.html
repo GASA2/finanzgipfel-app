@@ -291,7 +291,7 @@ function norm(s){if(!s)return s;s=JSON.parse(JSON.stringify(s));const sy=s.start
   const fx=f=>f>1000?f:sy*100+(+f||1);
   if(!s.salary)s.salary=[{from:1,netto:+s.netto||0,brutto:+s.brutto||0}];
   s.salary=s.salary.map(e=>({...e,from:fx(e.from)}));delete s.netto;delete s.brutto;
-  ["fix","fixYear"].forEach(l=>{s[l]=(s[l]||[]).map((f,i)=>{const h=f.h||[{from:1,a:+f.a||0}];return{id:f.id||("o"+l+i),n:f.n,t:f.t,h:h.map(e=>({from:fx(e.from),a:+e.a||0}))}})});
+  ["fix","fixYear"].forEach(l=>{s[l]=(s[l]||[]).map((f,i)=>{const h=f.h||[{from:1,a:+f.a||0}];return{id:f.id||("o"+l+i),n:f.n,t:f.t,h:h.map(e=>({from:fx(e.from),a:+e.a||0})),...(Array.isArray(f.due)&&f.due.length?{due:f.due}:{})}})});
   if(typeof s.hobbyStart!=="object"||s.hobbyStart===null)s.hobbyStart={[sy]:+s.hobbyStart||0};
   if(typeof s.steuerJahr!=="object"||s.steuerJahr===null)s.steuerJahr={[sy]:+s.steuerJahr||0};
   delete s.steuerAngespart;return s}
@@ -389,13 +389,20 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape")closeSheet()});
 function formSheet({title,note,fields,onSave,onDelete,deleteLabel="Löschen",saveLabel="Speichern"}){
   const f=fields.map(x=>{const id="f_"+x.k;let input;
     if(x.type==="select")input=`<select id="${id}">${x.options.map(o=>Array.isArray(o)?`<option value="${o[0]}" ${o[0]==x.v?"selected":""}>${esc(o[1])}</option>`:`<option ${o===x.v?"selected":""}>${esc(o)}</option>`).join("")}</select>`;
+    else if(x.type==="months")return`<div class="field wide"><label>${esc(x.label)}</label><div class="chips" id="${id}" style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px">${MSHORT.map((n,i)=>`<button type="button" class="chip" style="justify-content:center;padding:8px 0" data-mo="${i+1}" aria-pressed="${(x.v||[]).includes(i+1)}">${n}</button>`).join("")}</div><div class="small muted" id="${id}_hint"></div>${x.extra||""}</div>`;
     else if(x.type==="check")return`<label class="toggle wide"><input type="checkbox" id="${id}" ${x.v?"checked":""}>${esc(x.label)}</label>`;
     else input=`<input id="${id}" type="${x.type==="num"?"text":x.type||"text"}" ${x.type==="num"?'inputmode="decimal"':""} value="${esc(x.v??"")}" placeholder="${esc(x.ph||"")}" enterkeyhint="done">`;
     return`<div class="field ${x.half?"":"wide"}"><label for="${id}">${esc(x.label)}</label>${input}</div>`}).join("");
   openSheet(`<h3>${esc(title)}</h3><div class="fields">${f}</div>${note?`<div class="small muted">${note}</div>`:""}
     <div class="row actions" style="gap:8px">${onDelete?`<button class="btn danger" id="fDel">${esc(deleteLabel)}</button>`:""}<button class="btn primary" style="flex:1" id="fSave">${esc(saveLabel)}</button></div>`,el=>{
     const vals=()=>{const v={};for(const x of fields){const n=el.querySelector("#f_"+x.k);
-        v[x.k]=x.type==="check"?n.checked:x.type==="num"?(n.value.trim()===""?null:numIn(n.value)):n.value.trim()}return v};
+        v[x.k]=x.type==="months"?[...n.querySelectorAll('[aria-pressed="true"]')].map(b=>+b.dataset.mo):x.type==="check"?n.checked:x.type==="num"?(n.value.trim()===""?null:numIn(n.value)):n.value.trim()}return v};
+    fields.filter(x=>x.type==="months").forEach(x=>{const box=el.querySelector("#f_"+x.k),hint=el.querySelector("#f_"+x.k+"_hint");
+      const upd=()=>{if(hint&&x.hint)hint.innerHTML=x.hint(vals())};
+      box.querySelectorAll("[data-mo]").forEach(b=>b.onclick=()=>{b.setAttribute("aria-pressed",b.getAttribute("aria-pressed")!=="true");upd()});
+      el.querySelectorAll("input").forEach(i=>i.addEventListener("input",upd));
+      el.querySelectorAll("[data-mo-set]").forEach(b=>b.onclick=()=>{const ms=b.dataset.moSet.split(",").map(Number);box.querySelectorAll("[data-mo]").forEach(c=>c.setAttribute("aria-pressed",ms.includes(+c.dataset.mo)));upd()});
+      upd()});
     el.querySelector("#fSave").onclick=()=>{if(!once())return;if(onSave(vals())!==false)closeSheet()};
     const del=el.querySelector("#fDel");if(del)del.onclick=()=>{if(del.dataset.sure){onDelete(vals());closeSheet()}else{del.dataset.sure=1;del.textContent="Wirklich?"}};
   })}
@@ -506,6 +513,7 @@ function vHome(){
       <div class="muted small">${chf(sp)} von ${chf(b)} CHF ausgegeben</div>
       ${left>0&&c===m?`<div class="small" style="margin-top:6px;${lowDay?"color:var(--warn)":""}"><b>${chf(left/dLeft)}</b> CHF pro Tag für ${dLeft} Tage${lowDay?" · knapp":""}</div>`:""}
     </div></section>
+  ${dueCard()}
   <div class="grid2">
     <button class="tile" data-go="plan"><span class="label">Hobbykonto</span><span class="mid">${chf(h.now)}</span><span class="small muted">Start ${chf(h.start,0)} + ${chf(h.sur,0)} − ${chf(h.taken,0)}</span></button>
     <button class="tile" data-go="wealth"><span class="label">Vermögen</span><span class="mid pv">${last?pvc(last.t,0):"–"}</span><span class="small muted pv">${last&&prev?`${last.t-prev.t>=0?"+":""}${pvc(last.t-prev.t,0)} zum Vormonat`:""}</span></button>
@@ -565,10 +573,11 @@ function vMonth(){
     <div class="small muted" style="margin-bottom:4px">Einmaliges, zählt im Total. „Geld von Hobbykonto“ gleicht eine erfasste Ausgabe aus, die du mit dem Hobbykonto bezahlst.</div><div class="list">
     ${sonder(m).map(s=>`<button class="li" data-sonder="${s.id}"><div class="grow"><div class="t">${esc(s.l)}</div>${s.h?'<div class="small muted">vom Hobbykonto</div>':""}</div><span class="amt ${s.a<0?"neg":""}">${chf(s.a)}</span></button>`).join("")||'<div class="small muted" style="padding:8px 0">Keine</div>'}
   </div></details>
-  <details class="card" data-k="info" ${S.open.info?"open":""}><summary><div style="min-width:0"><h2 class="dh">Fixkosten &amp; Rechnungen</h2><div class="small muted">${infos(m).length?infos(m).length+" Rechnungen · "+chf(infos(m).reduce((a,x)=>a+(+x.a||0),0))+" · nur Info":"Keine"}</div></div></summary>
+  <details class="card" data-k="info" ${S.open.info?"open":""}><summary><div style="min-width:0"><h2 class="dh">Fixkosten &amp; Rechnungen</h2><div class="small muted">${(()=>{const ex=dueList(m).filter(d=>!d.paid.length).length;return(infos(m).length?infos(m).length+" Rechnungen · "+chf(infos(m).reduce((a,x)=>a+(+x.a||0),0))+" · nur Info":"Keine")+(ex?` · <span style="color:var(--warn)">${ex} erwartet</span>`:"")})()}</div></div></summary>
     <button class="link" id="addInfo" style="margin:8px 0 4px">+ Hinzufügen</button>
     <div class="small muted" style="margin-bottom:4px">Nur zur Info, zählt nicht im Budget.</div><div class="list">
-    ${infos(m).slice().sort((a,b)=>a.d-b.d).map(x=>`<button class="li" data-info="${x.id}"><div class="grow"><div class="t">${esc(x.n||x.p||"Rechnung")}</div><div class="small muted">${x.d}. ${MSHORT[m-1]}${x.p&&x.p!==x.n?" · "+esc(x.p):""}</div></div><span class="amt">${chf(x.a)}</span></button>`).join("")||'<div class="small muted" style="padding:8px 0">Keine</div>'}
+    ${infos(m).slice().sort((a,b)=>a.d-b.d).map(x=>`<button class="li" data-info="${x.id}"><div class="grow"><div class="t">${esc(x.n||x.p||"Rechnung")}</div><div class="small muted">${x.d}. ${MSHORT[m-1]}${x.p&&x.p!==x.n?" · "+esc(x.p):""}</div>${offDue(x,m)?`<div class="small" style="color:var(--warn)">${MONTHS[m-1]} ist bei dieser Position nicht als Rechnungsmonat markiert</div>`:""}</div><span class="amt">${chf(x.a)}</span></button>`).join("")||(dueList(m).some(d=>!d.paid.length)?"":'<div class="small muted" style="padding:8px 0">Keine</div>')}
+    ${dueList(m).filter(d=>!d.paid.length).map(d=>`<button class="li" data-due="${m}:${esc(d.f.id)}" style="opacity:.6"><div class="grow"><div class="t">${esc(d.f.n)}</div><div class="small muted">erwartet · ${dueSub(d)} · antippen zum Eintragen</div></div><span class="amt">${chf(d.per)}</span></button>`).join("")}
     ${infos(m).length?`<div class="li"><span class="grow"><b>Summe</b> <span class="small muted">nur Info</span></span><span class="amt">${chf(infos(m).reduce((a,x)=>a+(+x.a||0),0))}</span></div>`:""}
   </div></details>`}
 
@@ -997,6 +1006,8 @@ function bindView(v){
   on("[data-top]",b=>{S.topMode=b.dataset.top;render()});
   on("#addSonder",()=>sonderSheet(S.mKey));
   on("#addInfo",()=>infoSheet(S.mKey));
+  on("[data-due]",b=>{const[mm,id]=b.dataset.due.split(":"),m2=+mm,d=dueList(m2).find(z=>z.f.id===id);if(!d)return;
+    if(d.paid.length)infoSheet(m2,d.paid[0]);else infoSheet(m2,null,{n:d.f.n,a:d.per,p:d.f.n})});
   on("[data-info]",b=>infoSheet(S.mKey,infos(S.mKey).find(x=>x.id===b.dataset.info)));
   on("[data-sonder]",b=>sonderSheet(S.mKey,sonder(S.mKey).find(x=>x.id===b.dataset.sonder)));
   on("#addVerm",()=>{if(privacy){toast("Vermögen ist verborgen");return}vermSheet()});
@@ -1028,14 +1039,40 @@ function bindView(v){
    amount and are stored as minus (money coming in); "Andere" keeps the sign as typed. */
 /* Info table: bills and fixed-cost payments with their payment day. Shown per month, never counted. */
 const NO_FIX="– keine Fixkosten –";
+/* Bills due: yearly fixed costs with months set under "Rechnung kommt im". One bill = yearly amount ÷ number
+   of months. A bill counts as paid when the month's "Fixkosten & Rechnungen" has an entry for that position. */
+const sameP=(a,b)=>String(a||"").toLowerCase()===String(b||"").toLowerCase();
+function dueList(m,y=year()){const out=[];
+  (S.settings.fixYear||[]).forEach(f=>{const ds=f.due||[];if(!ds.includes(m))return;const v=valAt(f.h,ym(m,y));if(!v)return;
+    const paid=(S.months[key(m,y)]?.info||[]).filter(x=>sameP(x.p,f.n));
+    out.push({f,per:r2(v/ds.length),n:ds.length,nr:ds.slice().sort((a,b)=>a-b).indexOf(m)+1,paid,paidAmt:paid.reduce((a,x)=>a+(+x.a||0),0)})});
+  return out.sort((a,b)=>(a.paid.length?1:0)-(b.paid.length?1:0)||b.per-a.per)}
+const dueSub=d=>d.n===1?"jährlich":d.n===4?`vierteljährlich · ${d.nr}. von 4`:`${d.nr}. von ${d.n} Rechnungen`;
+/* Bills entered in a month that is not marked as due for that position. */
+const offDue=(x,m)=>{const f=(S.settings.fixYear||[]).find(z=>sameP(z.n,x.p));return f&&(f.due||[]).length&&!f.due.includes(m)};
+/* Months in which bills for this position were entered (last 12 months), shown as a suggestion. */
+function seenHint(f){const now=nowYM(),ms=new Set();for(const k of Object.keys(S.months)){const t=+k.slice(0,4)*100+ +k.slice(5);if(t>now||t<=ymAdd(now,-12))continue;
+    if((S.months[k].info||[]).some(x=>sameP(x.p,f.n)))ms.add(+k.slice(5))}
+  if(!ms.size)return"";const l=[...ms].sort((a,b)=>a-b);
+  return`<div class="small muted" style="margin-top:2px">Eingetragen in den letzten 12 Monaten: ${l.map(i=>MSHORT[i-1]).join(", ")} · <button type="button" class="link" style="font-size:13px" data-mo-set="${l.join(",")}">übernehmen</button></div>`}
+function dueCard(){if(!editableYear())return"";const c=curMonth();if(c<1||c>12)return"";const y=year();
+  const now=dueList(c,y),nm=c===12?1:c+1,ny=c===12?y+1:y,next=dueList(nm,ny);if(!now.length&&!next.length)return"";
+  const open=now.filter(d=>!d.paid.length),openSum=open.reduce((a,d)=>a+d.per,0),nextSum=next.reduce((a,d)=>a+d.per,0);
+  return`<section class="card"><div class="sec-h"><h2>Diesen Monat fällig</h2><span class="small muted">${MONTHS[c-1]}</span></div>
+    ${now.length?`<div class="list">${now.map(d=>{const p=d.paid.length;return`<button class="li" data-due="${c}:${esc(d.f.id)}"><div class="grow"><div class="t">${esc(d.f.n)}</div><div class="small muted">${dueSub(d)}${p?` · ${d.paid[0].d}. ${MSHORT[c-1]}`:""}</div></div>
+        <div style="text-align:right"><div class="amt">${chf(p?d.paidAmt:d.per)}</div>${p?'<span class="pill good">✓ bezahlt</span>':'<span class="pill warn">offen</span>'}</div></button>`}).join("")}</div>
+      <div class="li" style="border-top:1px solid var(--line)"><span class="grow">${open.length?`<b>Noch offen</b> <span class="small muted">${open.length} von ${now.length}</span>`:'<b style="color:var(--good)">Alles bezahlt</b>'}</span><span class="amt">${open.length?chf(openSum):""}</span></div>`
+      :`<div class="small muted">Diesen Monat ist keine Rechnung fällig.</div>`}
+    ${next.length?`<div class="small" style="margin-top:8px;padding:8px 12px;border-radius:10px;background:var(--surface2)">Im ${MONTHS[nm-1]}: <b>${next.length} ${next.length===1?"Rechnung":"Rechnungen"} · ${chf(nextSum)}</b> <span class="muted">(${next.map(d=>esc(d.f.n)).join(", ")})</span></div>`:""}
+    <div class="small muted" style="margin-top:8px">Antippen zum Eintragen. Die Monate legst du unter Planung bei den jährlichen Fixkosten fest.</div></section>`}
 const infos=(m,y=year())=>S.months[key(m,y)]?.info||[];
-function infoSheet(m,x){const names=[...(S.settings.fix||[]),...(S.settings.fixYear||[])].map(f=>f.n);if(x?.p&&!names.includes(x.p)&&x.p!==NO_FIX)names.push(x.p);names.push(NO_FIX);
+function infoSheet(m,x,pre){const names=[...(S.settings.fix||[]),...(S.settings.fixYear||[])].map(f=>f.n);if(x?.p&&!names.includes(x.p)&&x.p!==NO_FIX)names.push(x.p);names.push(NO_FIX);
   const t=today(),defDay=year()===t.getFullYear()&&m===t.getMonth()+1?t.getDate():1;
   formSheet({title:x?"Rechnung":"Neue Rechnung",note:"Nur zur Info. Zählt nicht im Budget.",fields:[
-    {k:"n",label:"Bezeichnung / Notiz",v:x?.n,ph:"z. B. ÖKK, Steuern 1. Rate"},
-    {k:"a",label:"Betrag CHF",type:"num",v:x?.a,half:1},
+    {k:"n",label:"Bezeichnung / Notiz",v:x?.n??pre?.n,ph:"z. B. ÖKK, Steuern 1. Rate"},
+    {k:"a",label:"Betrag CHF",type:"num",v:x?.a??pre?.a,half:1},
     {k:"d",label:"Tag (Zahlungstag)",type:"select",options:[...Array(daysIn(m))].map((_,i)=>String(i+1)),v:String(x?.d||defDay),half:1},
-    {k:"p",label:"Fixkosten-Position",type:"select",options:names,v:x?.p||NO_FIX}],
+    {k:"p",label:"Fixkosten-Position",type:"select",options:names,v:x?.p||pre?.p||NO_FIX}],
   onSave:v=>{if(v.a==null||isNaN(v.a)){toast("Betrag eingeben");return false}
     const doc=monthDoc(m);doc.info=doc.info||[];const it={id:x?.id||uid(),d:+v.d,a:r2(v.a),n:v.n||v.p,p:v.p};
     const i=doc.info.findIndex(z=>z.id===it.id);if(i>=0)doc.info[i]=it;else doc.info.push(it);saveMonth(m,doc);toast("Gespeichert")},
@@ -1105,14 +1142,17 @@ function fixSheet(list,id){
   formSheet({title:f?f.n:(yearly?"Neue jährliche Fixkosten":"Neue Fixkosten"),
     note:(f?histHtml(f,yearly):"")+`<div class="small muted"${f?' style="margin-top:10px"':""}>${f?(ended?"Mit einem Betrag wieder aufnehmen, ab dem gewählten Monat.":"Änderung oder Kündigung gilt ab dem gewählten Monat, auch rückwirkend."):"Ein früherer Monat ist möglich, wenn die Kosten schon länger laufen."} Budgets abgeschlossener Monate bleiben unverändert.</div>`,
     fields:[{k:"n",label:"Bezeichnung",v:f?.n},{k:"a",label:yearly?"CHF pro Jahr":"CHF pro Monat",type:"num",v:f&&!ended?valAt(f.h,now):"",half:1},{k:"t",label:"Typ",type:"select",options:FIXTYPES,v:f?.t||"Sonstiges",half:1},
-      {k:"from",label:ended?"Wieder aktiv ab":"Gilt ab",type:"select",options:monthChoices(),v:now}],
+      {k:"from",label:ended?"Wieder aktiv ab":"Gilt ab",type:"select",options:monthChoices(),v:now},
+      ...(yearly?[{k:"due",label:"Rechnung kommt im",type:"months",v:f?.due||[],extra:f?seenHint(f):"",
+        hint:v=>{const n=(v.due||[]).length,a=v.a;if(!n)return"Keine Monate gewählt: erscheint nicht bei „Diesen Monat fällig“.";
+          return`${n===1?"1 Rechnung":n+" Rechnungen"} pro Jahr${a?` à ca. ${chf(a/n)} CHF`:""}`}}]:[])],
     onSave:x=>{const noAmt=x.a==null||isNaN(x.a);if(!x.n||(noAmt&&!ended)){toast("Bezeichnung und Betrag eingeben");return false}
       const s=JSON.parse(JSON.stringify(S.settings)),a=noAmt?0:r2(x.a),from=+x.from||now;
       if(f&&x.n!==f.n){/* renaming also renames the matching bills in every month */
         for(const k of Object.keys(S.months)){const d=S.months[k],inf=d.info||[];if(!inf.some(b=>b.p===f.n))continue;
           const nd={...d,info:inf.map(b=>b.p===f.n?{...b,p:x.n,n:b.n===f.n?x.n:b.n}:b)};S.months[k]=nd;setTimeout(()=>write("months/"+k,nd),0)}}
-      if(f){const it=s[list].find(z=>z.id===id);it.n=x.n;it.t=x.t;if(!noAmt&&(a!==valAt(it.h,from)||it.h.some(e=>e.from>from))){it.h=it.h.filter(e=>e.from<from);it.h.push({from,a})}}
-      else s[list].push({id:uid(),n:x.n,t:x.t,h:[{from,a}]});
+      if(f){const it=s[list].find(z=>z.id===id);it.n=x.n;it.t=x.t;if(yearly){if(x.due.length)it.due=x.due;else delete it.due}if(!noAmt&&(a!==valAt(it.h,from)||it.h.some(e=>e.from>from))){it.h=it.h.filter(e=>e.from<from);it.h.push({from,a})}}
+      else s[list].push({id:uid(),n:x.n,t:x.t,h:[{from,a}],...(yearly&&x.due.length?{due:x.due}:{})});
       saveSettings(s);toast(`Gespeichert ab ${ymLabel(from)} · Budget ${MONTHS[now%100-1]}: CHF ${chf(nettoAt(now,s)-fixAt(now,s))}`)},
     deleteLabel:usedBefore?"Kündigen":"Löschen",
     onDelete:f&&!ended?v=>{const from=+v.from||now,s=JSON.parse(JSON.stringify(S.settings)),it=s[list].find(z=>z.id===id);
