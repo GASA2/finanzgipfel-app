@@ -529,13 +529,13 @@ function vHome(){
     ${monthChart()}
     <div class="row" style="gap:14px;flex-wrap:wrap;margin-top:6px"><span class="small muted row" style="gap:6px"><span class="sw" style="background:var(--surface2);border:1px solid var(--line)"></span>Budget</span><span class="small muted row" style="gap:6px"><span class="sw" style="background:var(--good)"></span>im Budget</span><span class="small muted row" style="gap:6px"><span class="sw" style="background:var(--bad)"></span>darüber</span></div>
   </section>
-  ${dueCard()}
   <div class="grid2">
     <button class="tile" data-go="plan"><span class="label">Hobbykonto</span><span class="mid">${chf(h.now)}</span><span class="small muted">Start ${chf(h.start,0)} + ${chf(h.sur,0)} − ${chf(h.taken,0)}</span></button>
     <button class="tile" data-go="wealth"><span class="label">Vermögen</span><span class="mid pv">${last?pvc(last.t,0):"–"}</span><span class="small muted pv">${last&&prev?`${last.t-prev.t>=0?"+":""}${pvc(last.t-prev.t,0)} zum Vormonat`:""}</span></button>
     <div class="tile"><span class="label">Sparquote Monat</span><span class="mid">${pct(net?sparen/net:0)}</span><span class="small muted">${chf(sparen,0)} von ${chf(net,0)} Netto</span><span class="small" style="margin-top:4px">Ø ${y}: <b>${(()=>{let sv=0,nt=0;for(let i=1;i<=Math.min(Math.max(c,1),12);i++){const b2=byType(ym(i));sv+=(b2["Sparen & Anlegen"]||0)+(b2["Vorsorge (3. Säule)"]||0);nt+=nettoAt(ym(i))}return nt?(sv/nt*100).toFixed(1).replace(".",",")+" %":"–"})()}</b></span></div>
     <div class="tile"><span class="label">Jahr bisher</span><span class="mid">${chf(sY,0)}</span><span class="small muted">von ${chf(bY,0)} Budget · ${pct(bY?sY/bY:0)}</span></div>
   </div>
+  ${dueCard()}
   ${(()=>{const al=aboList(),act=al.filter(a=>!a.ended),pm=act.reduce((x,a)=>x+a.perMonth,0),warn=al.filter(a=>a.ended||(a.yearly&&a.days!=null&&a.days<=30)).length,chk=act.filter(a=>a.mark!=="keep"&&!a.endsAt).length;
     const wl=S.settings.wish||[],t0=today(),due=wl.filter(w=>(new Date(t0.getFullYear(),t0.getMonth(),t0.getDate())-new Date(w.added+"T00:00:00"))/864e5>=WISH_DAYS).length;
     const row=(go,title,sub,pill)=>`<button class="li navrow" data-go="${go}"><div class="grow"><div class="t" style="font-weight:600">${title}</div><div class="small muted">${sub}</div></div>${pill}<span class="muted" style="font-size:22px;margin-left:6px">›</span></button>`;
@@ -720,7 +720,7 @@ function aboList(){const now=nowYM(),t0=new Date(today().getFullYear(),today().g
     const change=pays.length>1&&Math.abs(pays[0].a-pays[1].a)>.009?r2(pays[0].a-pays[1].a):0;
     out.push({f,l,yearly,cur,perMonth,perYear,pays,last,next,days:next?Math.round((next-t0)/864e5):null,change,ended,paidAfterEnd,endsAt,mark:aboCfg(f).mark||"keep"})}));
   return out.sort((a,b)=>b.perYear-a.perYear)}
-const APP_VERSION="1.4";
+const APP_VERSION="1.5";
 const ymLabel=(t,short)=>(short?MSHORT:MONTHS)[t%100-1]+" "+Math.floor(t/100);
 const ymAdd=(t,k)=>{let y=Math.floor(t/100),m=t%100+k;while(m>12){m-=12;y++}while(m<1){m+=12;y--}return y*100+m};
 function monthChoices(){const y=todayYear(),o=[];for(let m=1;m<=12;m++)o.push([ym(m,y),ymLabel(ym(m,y))]);return o}
