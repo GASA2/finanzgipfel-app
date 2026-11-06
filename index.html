@@ -725,7 +725,7 @@ function aboList(){const now=nowYM(),t0=new Date(today().getFullYear(),today().g
     const change=pays.length>1&&Math.abs(pays[0].a-pays[1].a)>.009?r2(pays[0].a-pays[1].a):0;
     out.push({f,l,yearly,cur,perMonth,perYear,pays,last,next,days:next?Math.round((next-t0)/864e5):null,change,ended,paidAfterEnd,endsAt,mark:aboCfg(f).mark||"keep"})}));
   return out.sort((a,b)=>b.perYear-a.perYear)}
-const APP_VERSION="1.6";
+const APP_VERSION="1.7";
 const ymLabel=(t,short)=>(short?MSHORT:MONTHS)[t%100-1]+" "+Math.floor(t/100);
 const ymAdd=(t,k)=>{let y=Math.floor(t/100),m=t%100+k;while(m>12){m-=12;y++}while(m<1){m+=12;y--}return y*100+m};
 function monthChoices(){const y=todayYear(),o=[];for(let m=1;m<=12;m++)o.push([ym(m,y),ymLabel(ym(m,y))]);return o}
@@ -1196,10 +1196,10 @@ function vermSheet(mk){const rows=S.verm?.rows||[];const last=rows[rows.length-1
   formSheet({title:r?`Vermögen ${MONTHS[+nm.slice(5)-1]} ${nm.slice(0,4)}`:"Neuer Monat",fields:[
     {k:"m",label:"Monat",type:"month",v:nm},
     {k:"t",label:"Gesamtvermögen CHF",type:"num",v:r?r.t:"",ph:last?"zuletzt "+chf(last.t,0):""},
-    ...accts().filter(a=>!a.hide).map(a=>({k:a.k,label:a.n,type:"num",v:base[a.k]??"",half:1})),
+    ...accts().filter(a=>!a.hide||(r&&r[a.k]!=null)).map(a=>({k:a.k,label:a.n+(a.hide?" (ausgeblendet)":""),type:"num",v:base[a.k]??"",half:1})),
     {k:"e3",label:"Säule 3a einbezahlt / Monat",type:"num",v:base.e3??"",half:1}],
   onSave:x=>{if(!x.m||x.t==null||isNaN(x.t)){toast("Monat und Gesamtvermögen eingeben");return false}
-    const row={m:x.m,t:x.t};for(const a of accts()){if(a.hide){if(r&&r[a.k]!=null)row[a.k]=r[a.k]}else if(x[a.k]!=null&&!isNaN(x[a.k]))row[a.k]=x[a.k]}if(x.e3!=null&&!isNaN(x.e3))row.e3=x.e3;
+    const row={m:x.m,t:x.t};for(const a of accts()){if(a.k in x){if(x[a.k]!=null&&!isNaN(x[a.k]))row[a.k]=x[a.k]}else if(r&&r[a.k]!=null)row[a.k]=r[a.k]}if(x.e3!=null&&!isNaN(x.e3))row.e3=x.e3;
     const list=rows.filter(y=>y.m!==x.m&&y.m!==mk);list.push(row);list.sort((a,b)=>a.m<b.m?-1:1);saveVerm({rows:list});toast("Vermögen gespeichert")},
   onDelete:r?()=>saveVerm({rows:rows.filter(y=>y.m!==mk)}):null})}
 
