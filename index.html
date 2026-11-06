@@ -262,6 +262,10 @@ const PALETTE=["--n100","--n10","--n50","--n20","--n1000","--n200","--n5","--n2"
 const FIXTYPES=["Wohnen","Versicherungen","Krankenkasse","Telefon & Internet","Mobilität","Abos & Medien","Steuern","Sparen & Anlegen","Vorsorge (3. Säule)","Rückstellungen","Ferien","Energie & Nebenkosten","Gebühren & Abgaben","Militär und Zivilschutz","Sonstiges"];
 const SAVING_TYPES=["Sparen & Anlegen","Vorsorge (3. Säule)"];
 const ACCOUNTS=[["w3","Säule 3a Wert"],["st","Steuerkonto"],["re","Rechnungskonto"],["fe","Ferienkonto"],["ny","New York Konto"],["hb","Hobbykonto"]];
+/* Wealth accounts: settings.accounts = [{k,n,c,hide}] in display order. k = key in the monthly rows (never changes),
+   n = name, c = colour index (stays fixed), hide = no longer shown. Without settings the six original accounts apply. */
+const accts=()=>S.settings?.accounts||ACCOUNTS.map(([k,n],i)=>({k,n,c:i}));
+const acctColor=a=>`var(${PALETTE[(a.c||0)%PALETTE.length]})`;
 
 const S={statTab:(()=>{try{return localStorage.getItem('fin-stat')||'money'}catch(e){return'money'}})(),open:{},catFilter:null,settings:null,months:{},verm:null,tab:"home",mKey:null,year:null,wRange:"1y",topMode:"all"};
 let db=null, downloads=null, pending=0;
@@ -623,11 +627,12 @@ function vWealth(){
       ${[["1y","1 J"],["3y","3 J"],["all","Alle"]].map(([k,l])=>`<button data-wr="${k}" aria-pressed="${S.wRange===k}">${l}</button>`).join("")}</div></div>
     <div class="chart" style="margin-top:8px">${wChart(shown)}</div></section>
   <section class="card"><div class="sec-h"><h2>Konten</h2><span class="small muted">Stand ${MSHORT[+mm-1]} ${yy}</span></div>
-    ${(()=>{const parts=ACCOUNTS.filter(([k])=>last[k]!=null&&k!=="w3"||k==="w3"&&last.w3!=null).map(([k,l],i)=>[l,+last[k]||0,`var(${PALETTE[i]})`]);const known=parts.reduce((a,p)=>a+p[1],0);if(last.t-known>0)parts.push(["Übriges (Depots, GKB usw.)",last.t-known,"var(--muted)"]);
+    ${(()=>{const parts=accts().filter(a=>last[a.k]!=null&&(!a.hide||+last[a.k])).map(a=>[a.n,+last[a.k]||0,acctColor(a)]);const known=parts.reduce((a,p)=>a+p[1],0);if(last.t-known>0)parts.push(["Übriges (Depots, GKB usw.)",last.t-known,"var(--muted)"]);
       return`<div class="stack" style="height:16px" role="img" aria-label="Aufteilung des Vermögens">${parts.map(p=>`<i style="width:${p[1]/last.t*100}%;background:${p[2]}"></i>`).join("")}</div>
       <div class="list" style="margin-top:8px">${parts.map(p=>`<div class="li"><span class="sw" style="background:${p[2]}"></span><span class="grow t">${esc(p[0])}</span><span class="amt">${pvc(p[1],0)}</span><span class="small muted" style="width:44px;text-align:right">${pvp(p[1]/last.t)}</span></div>`).join("")}
       ${last.e3!=null?`<div class="li"><span class="sw" style="background:transparent"></span><span class="grow small muted">Säule 3a einbezahlt / Monat</span><span class="small muted">${pvc(last.e3)}</span></div>`:""}</div>`})()}
     <button class="btn primary full" id="addVerm" style="margin-top:12px">Neuen Monat erfassen</button>
+    <button class="btn full" id="manageAcc" style="margin-top:8px">Konten verwalten</button>
   </section>
   <section class="card"><div class="sec-h"><h2>Jahre</h2><span class="small muted">Start → Ende</span></div><div class="list">
     ${(()=>{const ys=[...new Set(rows.map(r=>r.m.slice(0,4)))];return ys.slice().reverse().map(y=>{const inY=rows.filter(r=>r.m.startsWith(y)),end=inY[inY.length-1],prevEnd=rows.filter(r=>r.m<y+"-01").pop(),start=prevEnd||inY[0],g=end.t-start.t;
@@ -720,7 +725,7 @@ function aboList(){const now=nowYM(),t0=new Date(today().getFullYear(),today().g
     const change=pays.length>1&&Math.abs(pays[0].a-pays[1].a)>.009?r2(pays[0].a-pays[1].a):0;
     out.push({f,l,yearly,cur,perMonth,perYear,pays,last,next,days:next?Math.round((next-t0)/864e5):null,change,ended,paidAfterEnd,endsAt,mark:aboCfg(f).mark||"keep"})}));
   return out.sort((a,b)=>b.perYear-a.perYear)}
-const APP_VERSION="1.5";
+const APP_VERSION="1.6";
 const ymLabel=(t,short)=>(short?MSHORT:MONTHS)[t%100-1]+" "+Math.floor(t/100);
 const ymAdd=(t,k)=>{let y=Math.floor(t/100),m=t%100+k;while(m>12){m-=12;y++}while(m<1){m+=12;y--}return y*100+m};
 function monthChoices(){const y=todayYear(),o=[];for(let m=1;m<=12;m++)o.push([ym(m,y),ymLabel(ym(m,y))]);return o}
@@ -1024,6 +1029,7 @@ function bindView(v){
     if(d.paid.length)infoSheet(m2,d.paid[0]);else infoSheet(m2,null,{n:d.f.n,a:d.per,p:d.f.n})});
   on("[data-info]",b=>infoSheet(S.mKey,infos(S.mKey).find(x=>x.id===b.dataset.info)));
   on("[data-sonder]",b=>sonderSheet(S.mKey,sonder(S.mKey).find(x=>x.id===b.dataset.sonder)));
+  on("#manageAcc",()=>acctManage());
   on("#addVerm",()=>{if(privacy){toast("Vermögen ist verborgen");return}vermSheet()});
   on("[data-verm]",b=>{if(privacy){toast("Vermögen ist verborgen");return}vermSheet(b.dataset.verm)});
   on("[data-fix]",b=>{const[l,i]=b.dataset.fix.split(":");fixSheet(l,i)});
@@ -1190,12 +1196,33 @@ function vermSheet(mk){const rows=S.verm?.rows||[];const last=rows[rows.length-1
   formSheet({title:r?`Vermögen ${MONTHS[+nm.slice(5)-1]} ${nm.slice(0,4)}`:"Neuer Monat",fields:[
     {k:"m",label:"Monat",type:"month",v:nm},
     {k:"t",label:"Gesamtvermögen CHF",type:"num",v:r?r.t:"",ph:last?"zuletzt "+chf(last.t,0):""},
-    ...ACCOUNTS.map(([k,l])=>({k,label:l,type:"num",v:base[k]??"",half:1})),
+    ...accts().filter(a=>!a.hide).map(a=>({k:a.k,label:a.n,type:"num",v:base[a.k]??"",half:1})),
     {k:"e3",label:"Säule 3a einbezahlt / Monat",type:"num",v:base.e3??"",half:1}],
   onSave:x=>{if(!x.m||x.t==null||isNaN(x.t)){toast("Monat und Gesamtvermögen eingeben");return false}
-    const row={m:x.m,t:x.t};for(const[k] of ACCOUNTS)if(x[k]!=null&&!isNaN(x[k]))row[k]=x[k];if(x.e3!=null&&!isNaN(x.e3))row.e3=x.e3;
+    const row={m:x.m,t:x.t};for(const a of accts()){if(a.hide){if(r&&r[a.k]!=null)row[a.k]=r[a.k]}else if(x[a.k]!=null&&!isNaN(x[a.k]))row[a.k]=x[a.k]}if(x.e3!=null&&!isNaN(x.e3))row.e3=x.e3;
     const list=rows.filter(y=>y.m!==x.m&&y.m!==mk);list.push(row);list.sort((a,b)=>a.m<b.m?-1:1);saveVerm({rows:list});toast("Vermögen gespeichert")},
   onDelete:r?()=>saveVerm({rows:rows.filter(y=>y.m!==mk)}):null})}
+
+/* Konten verwalten: rename, hide/show, reorder, add; delete only if the account never had an amount. */
+const acctUsed=k=>(S.verm?.rows||[]).some(r=>r[k]!=null);
+function saveAccts(list){saveSettings({...JSON.parse(JSON.stringify(S.settings)),accounts:list})}
+function acctManage(){const list=accts();
+  openSheet(`<h3>Konten verwalten</h3><div class="small muted">Antippen zum Umbenennen oder Ausblenden. Mit den Pfeilen änderst du die Reihenfolge.</div>
+    <div class="list">${list.map((a,i)=>`<div class="li" style="gap:8px"><button class="row grow" data-acc="${esc(a.k)}" style="gap:10px;text-align:left;min-width:0"><span class="sw" style="background:${acctColor(a)};${a.hide?"opacity:.35":""}"></span><span class="grow" style="min-width:0"><span class="t" style="display:block;${a.hide?"color:var(--muted)":""}">${esc(a.n)}</span>${a.hide?'<span class="small muted">ausgeblendet</span>':""}</span></button>
+      <button class="iconbtn sm" data-accmv="${i}:-1" ${i===0?"disabled":""} aria-label="Nach oben">↑</button><button class="iconbtn sm" data-accmv="${i}:1" ${i===list.length-1?"disabled":""} aria-label="Nach unten">↓</button></div>`).join("")}</div>
+    <button class="link" id="accNew" style="align-self:flex-start">+ Neues Konto</button>
+    <div class="small muted">„Übriges (Depots, GKB usw.)“ rechnet die App selbst aus: Gesamtvermögen minus alle Konten.</div>`,el=>{
+    el.querySelectorAll("[data-accmv]").forEach(b=>b.onclick=()=>{const[i,d]=b.dataset.accmv.split(":").map(Number),l=JSON.parse(JSON.stringify(list)),j=i+d;if(j<0||j>=l.length)return;[l[i],l[j]]=[l[j],l[i]];saveAccts(l);acctManage()});
+    el.querySelectorAll("[data-acc]").forEach(b=>b.onclick=()=>acctSheet(b.dataset.acc));
+    el.querySelector("#accNew").onclick=()=>acctSheet(null)})}
+function acctSheet(k){const list=accts(),a=k?list.find(x=>x.k===k):null;if(k&&!a)return;const used=a&&acctUsed(a.k);
+  formSheet({title:a?a.n:"Neues Konto",fields:[{k:"n",label:"Name",v:a?.n,ph:"z. B. Sparkonto"},...(a?[{k:"hide",label:"Ausblenden (wird nicht mehr gebraucht)",type:"check",v:a.hide}]:[])],
+    note:a?(used?"Die Werte der früheren Monate bleiben erhalten, auch wenn du das Konto umbenennst oder ausblendest.":"Dieses Konto hatte noch nie einen Betrag und kann gelöscht werden."):"Erscheint ab sofort bei „Neuen Monat erfassen“.",
+    onSave:x=>{if(!x.n){toast("Name eingeben");return false}const l=JSON.parse(JSON.stringify(list));
+      if(a){const it=l.find(z=>z.k===a.k);it.n=x.n;if(x.hide)it.hide=true;else delete it.hide}
+      else{const cs=l.map(z=>z.c||0);l.push({k:"a"+uid(),n:x.n,c:cs.length?Math.max(...cs)+1:0})}
+      saveAccts(l);toast(a?(x.hide&&!a.hide?`${x.n} ausgeblendet`:"Gespeichert"):`${x.n} hinzugefügt`);setTimeout(acctManage,0)},
+    onDelete:a&&!used?()=>{saveAccts(list.filter(z=>z.k!==a.k));toast("Gelöscht");setTimeout(acctManage,0)}:null})}
 
 /* Full backup: one JSON file with every document of the app, enough to restore everything. */
 async function backupAll(){
