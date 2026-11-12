@@ -1,7 +1,7 @@
 {
  "id": "/finanzgipfel-app/",
- "name": "Finanzgipfel",
- "short_name": "Finanzgipfel",
+ "name": "Finanzaufstieg",
+ "short_name": "Finanzaufstieg",
  "description": "Persönliche Budget-App, offline auf dem Gerät.",
  "lang": "de-CH",
  "start_url": "./",
